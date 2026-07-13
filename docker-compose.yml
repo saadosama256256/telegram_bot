@@ -1,0 +1,10 @@
+services:
+  telegram-bot:
+    build: .
+    restart: always
+    environment:
+      - BOT_TOKEN=8219609386:AAGGG9-cNbE3j_-CFX1VTGgLCJhwuFZjLb8
+      - CHAT_ID=7138537775
+      - N8N_WEBHOOK=https://YOUR_N8N_WEBHOOK_URL_HERE
+    ports:
+      - "5000:5000"
