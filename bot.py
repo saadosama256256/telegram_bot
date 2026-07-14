@@ -10,12 +10,11 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN   = os.getenv("BOT_TOKEN", "8219609386:AAGGG9-cNbE3j_-CFX1VTGgLCJhwuFZjLb8")
 CHAT_ID     = int(os.getenv("CHAT_ID", "7138537775"))
-N8N_WEBHOOK = os.getenv("N8N_WEBHOOK", "")  # رابط webhook الخاص بـ n8n
+N8N_WEBHOOK = os.getenv("N8N_WEBHOOK", "")
 
-app  = Flask(__name__)
-bot  = Bot(token=BOT_TOKEN)
+app = Flask(__name__)
+bot = Bot(token=BOT_TOKEN)
 
-# ---- استقبال رسالة من n8n وإرسالها لتيليغرام ----
 @app.route("/send", methods=["POST"])
 def send_message():
     data = request.json or {}
@@ -23,10 +22,17 @@ def send_message():
     if not text:
         return jsonify({"error": "no text"}), 400
 
-    asyncio.run(bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown"))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(
+            bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown")
+        )
+    finally:
+        loop.close()
+
     return jsonify({"success": True})
 
-# ---- استقبال الرد من تيليغرام وإرساله لـ n8n ----
 async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not msg:
