@@ -1,9 +1,11 @@
 import os
 import asyncio
 import logging
+import httpx
 from flask import Flask, request, jsonify
 from telegram import Bot, Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.request import HTTPXRequest
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -13,7 +15,6 @@ CHAT_ID     = int(os.getenv("CHAT_ID", "7138537775"))
 N8N_WEBHOOK = os.getenv("N8N_WEBHOOK", "")
 
 app = Flask(__name__)
-bot = Bot(token=BOT_TOKEN)
 
 @app.route("/send", methods=["POST"])
 def send_message():
@@ -22,12 +23,20 @@ def send_message():
     if not text:
         return jsonify({"error": "no text"}), 400
 
+    async def _send():
+        trequest = HTTPXRequest(connection_pool_size=1)
+        send_bot = Bot(token=BOT_TOKEN, request=trequest)
+        async with send_bot:
+            await send_bot.send_message(
+                chat_id=CHAT_ID,
+                text=text,
+                parse_mode="Markdown"
+            )
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(
-            bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown")
-        )
+        loop.run_until_complete(_send())
     finally:
         loop.close()
 
@@ -45,7 +54,6 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Reply received: {text}")
 
     if N8N_WEBHOOK:
-        import httpx
         async with httpx.AsyncClient() as client:
             await client.post(N8N_WEBHOOK, json={
                 "user_reply":  text,
