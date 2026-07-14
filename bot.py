@@ -23,20 +23,26 @@ def send_message():
     if not text:
         return jsonify({"error": "no text"}), 400
 
+    # تنظيف النص من أي أحرف خاصة قد تسبب مشكلة
+    text = str(text)
+
     async def _send():
         trequest = HTTPXRequest(connection_pool_size=1)
         send_bot = Bot(token=BOT_TOKEN, request=trequest)
         async with send_bot:
             await send_bot.send_message(
                 chat_id=CHAT_ID,
-                text=text,
-                parse_mode="Markdown"
+                text=text
+                # بدون parse_mode لتجنب أخطاء الـ Markdown
             )
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(_send())
+    except Exception as e:
+        logger.error(f"Send error: {e}")
+        return jsonify({"error": str(e)}), 500
     finally:
         loop.close()
 
@@ -54,11 +60,14 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Reply received: {text}")
 
     if N8N_WEBHOOK:
-        async with httpx.AsyncClient() as client:
-            await client.post(N8N_WEBHOOK, json={
-                "user_reply":  text,
-                "quoted_text": quoted_text,
-            })
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(N8N_WEBHOOK, json={
+                    "user_reply":  text,
+                    "quoted_text": quoted_text,
+                })
+        except Exception as e:
+            logger.error(f"Webhook error: {e}")
 
 application = Application.builder().token(BOT_TOKEN).build()
 application.add_handler(MessageHandler(filters.REPLY & filters.TEXT, handle_reply))
